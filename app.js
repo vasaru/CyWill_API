@@ -40,8 +40,25 @@ app.use(handleError);
  * Retrieve all todo items.
  */
 function listVms(req, res, next) {
-  console.log("Getting all vms")
-  r.table('vms').orderBy({index: 'servername'}).run(req.app._rdbConn, function(err, cursor) {
+  var page = parseInt(req.query.page);
+  var pagesize = parseInt(req.query.pagesize);
+  var total;
+
+  console.log("Getting some vms");
+
+  console.log("page = "+page + " " + req.query);
+  console.log("page = "+pagesize);
+
+  r.table('vms').count().run(req.app._rdbConn, function(err, querytotal) {
+    if(err) {
+      return next(err);
+    }
+    total = querytotal;
+    console.log(querytotal);
+  });
+
+
+  r.table('vms').orderBy({index: 'servername'}).slice((page)*pagesize,(page)*pagesize+pagesize).run(req.app._rdbConn, function(err, cursor) {
     if(err) {
       return next(err);
     }
@@ -52,10 +69,30 @@ function listVms(req, res, next) {
         return next(err);
       }
       res.setHeader('content-type','application/json');
-      res.send(result);
+      var resstr = '{ "total": '+total+',\n  "vms": '+ JSON.stringify(result) + '}'
+
+//      var vms = JSON.parse(result);
+
+      res.send(resstr);
     });
   });
 }
+
+/*
+ * Get a specific todo item.
+ */
+function getVm(req, res, next) {
+  var vmID = req.params.id;
+
+  r.table('vms').get(vmID).run(req.app._rdbConn, function(err, result) {
+    if(err) {
+      return next(err);
+    }
+
+    res.json(result);
+  });
+}
+
 
 /*
  * Insert a new todo item.
@@ -75,20 +112,6 @@ function createTodoItem(req, res, next) {
   });
 }
 
-/*
- * Get a specific todo item.
- */
-function getVm(req, res, next) {
-  var vmID = req.params.id;
-
-  r.table('vms').get(vmID).run(req.app._rdbConn, function(err, result) {
-    if(err) {
-      return next(err);
-    }
-
-    res.json(result);
-  });
-}
 
 /*
  * Update a todo item.
@@ -142,7 +165,7 @@ function handleError(err, req, res, next) {
  */
 function startExpress(connection) {
   app._rdbConn = connection;
-  app.listen(config.express.port,'192.168.0.1');
+  app.listen(config.express.port,'localhost');
   console.log('Listening on port ' + config.express.port);
 }
 
