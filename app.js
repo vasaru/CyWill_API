@@ -42,43 +42,89 @@ app.use(handleError);
 function listVms(req, res, next) {
   var page = parseInt(req.query.page);
   var pagesize = parseInt(req.query.pagesize);
-  var total;
+  var sortstr = req.query.sort;
+  var filter = req.query.filters;
+  var total=0;
+  var reverse=false;
 
   console.log("Getting some vms");
 
-  console.log("page = "+page + " " + req.query);
-  console.log("page = "+pagesize);
+  console.log("item start = "+page);
+  console.log("item stop = "+pagesize);
+  var sortorder = "servername";
+  if(sortstr) {
+    console.log("Sort " + new Buffer(sortstr, 'base64') );
+    var sortobj = JSON.parse(new Buffer(sortstr, 'base64'));
+    sortorder=sortobj.by;
+    if(sortobj.reverse) {
+      reverse=true;
+    } 
 
-  r.table('vms').count().run(req.app._rdbConn, function(err, querytotal) {
-    if(err) {
-      return next(err);
-    }
-    total = querytotal;
-    console.log(querytotal);
-  });
+  }
+  var filtsrv="(?i)$.*";
+  var filtcreat="(?i)$.*";
+  if(filter) {
+    console.log("Filter " + new Buffer(filter, 'base64') );
+    filtobj= JSON.parse(new Buffer(filter, 'base64'));
+    if(filtobj["servername"])
+      filtsrv="(?i)"+filtobj["servername"]+".*";
+  }
 
+ 
 
-  r.table('vms').orderBy({index: 'servername'}).slice(page,page+pagesize).run(req.app._rdbConn, function(err, cursor) {
-    if(err) {
-      return next(err);
-    }
-
-    //Retrieve all the todos in an array.
-    cursor.toArray(function(err, result) {
+  if(reverse) {
+    r.table('vms').orderBy({index: r.desc(sortorder)}).filter(function(filt) {
+      return filt("servername").match(filtsrv);
+    }).run(req.app._rdbConn, function(err, cursor) {
       if(err) {
         return next(err);
       }
-      res.setHeader('content-type','application/json');
-      var resstr = '{ "total": '+total+',\n'+
-      ' "page": '+page+',\n'+
-      ' "pagesize": '+pagesize+',\n'+
-      ' "data": '+ JSON.stringify(result) + '\n}'
 
-//      var vms = JSON.parse(result);
+      //Retrieve all the todos in an array.
+      cursor.toArray(function(err, result) {
+        if(err) {
+          return next(err);
+        }
+        console.log("Building result total: "+result.length);
+        res.setHeader('content-type','application/json');
+        var resstr = '{ "total": '+result.length+',\n'+
+        ' "page": '+page+',\n'+
+        ' "pagesize": '+pagesize+',\n'+
+        ' "data": '+ JSON.stringify(result.slice(page,page+pagesize)) + '\n}'
 
-      res.send(resstr);
+  //      var vms = JSON.parse(result);
+
+        res.send(resstr);
+      });
     });
-  });
+
+  } else {
+    r.table('vms').orderBy({index: sortorder}).filter(function(filt) {
+      return filt("servername").match(filtsrv);
+    }).run(req.app._rdbConn, function(err, cursor) {
+      if(err) {
+        return next(err);
+      }
+
+      //Retrieve all the todos in an array.
+      cursor.toArray(function(err, result) {
+        if(err) {
+          return next(err);
+        }
+        console.log("Building result total: "+result.length);
+        res.setHeader('content-type','application/json');
+        var resstr = '{ "total": '+result.length+',\n'+
+        ' "page": '+page+',\n'+
+        ' "pagesize": '+pagesize+',\n'+
+        ' "data": '+ JSON.stringify(result.slice(page,page+pagesize)) + '\n}'
+
+  //      var vms = JSON.parse(result);
+
+        res.send(resstr);
+      });
+    });
+    
+  }
 }
 
 /*
