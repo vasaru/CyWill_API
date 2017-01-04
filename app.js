@@ -58,7 +58,7 @@ function listVms(req, res, next) {
   });
 
 
-  r.table('vms').orderBy({index: 'servername'}).slice((page)*pagesize,(page)*pagesize+pagesize).run(req.app._rdbConn, function(err, cursor) {
+  r.table('vms').orderBy({index: 'servername'}).slice(page,page+pagesize).run(req.app._rdbConn, function(err, cursor) {
     if(err) {
       return next(err);
     }
@@ -69,7 +69,10 @@ function listVms(req, res, next) {
         return next(err);
       }
       res.setHeader('content-type','application/json');
-      var resstr = '{ "total": '+total+',\n  "vms": '+ JSON.stringify(result) + '}'
+      var resstr = '{ "total": '+total+',\n'+
+      ' "page": '+page+',\n'+
+      ' "pagesize": '+pagesize+',\n'+
+      ' "data": '+ JSON.stringify(result) + '\n}'
 
 //      var vms = JSON.parse(result);
 
