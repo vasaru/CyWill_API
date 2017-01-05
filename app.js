@@ -70,6 +70,7 @@ function listVms(req, res, next) {
   }
   var filtsrv="(?i)$.*";
   var filtcreat="(?i)$.*";
+  var filtobj;
   if(filter) {
     console.log("Filter " + new Buffer(filter, 'base64') );
     filtobj= JSON.parse(new Buffer(filter, 'base64'));
@@ -90,12 +91,13 @@ function listVms(req, res, next) {
     } else {
       query=query.orderBy({index: sortorder});
     }
-
-    Object.keys(filtobj).forEach(function(key) {
-      var val = filtobj[key];
-        query=query.filter(function(q) {
-        return q(key).match("(?i)"+val+".*")})
-    });
+    if(filtobj) {
+      Object.keys(filtobj).forEach(function(key) {
+        var val = filtobj[key];
+          query=query.filter(function(q) {
+          return q(key).match("(?i)"+val+".*")})
+      });
+    }
     console.log(query);
 
     query.run(req.app._rdbConn, function(err, cursor) {
@@ -159,8 +161,8 @@ function getVmAlerts(req, res, next) {
 
 function getVmProperties(req, res, next) {
   var vmID = req.params.id;
-
-  r.table('vm_details').orderBy({index: 'lastseen'}).filter({'vmid': vmID}).run(req.app._rdbConn, function(err, cursor) {
+  console.log('Getting details for '+vmID);
+  r.table('vm_details').orderBy({index: r.desc('lastseen')}).filter({'vmid': vmID}).run(req.app._rdbConn, function(err, cursor) {
     if(err) {
       return next(err);
     }
@@ -168,7 +170,7 @@ function getVmProperties(req, res, next) {
       if(err) {
         return next(err);
       }
-      console.log(result.length)
+      console.dir(result);
     res.json(result); 
   });
 });
