@@ -24,6 +24,13 @@ app.route('/vms')
   .get(listVms)
   .post(createTodoItem);
 
+app.route('/vmalerts/:id')
+  .get(getVmAlerts)
+
+app.route('/vmdetails/:id')
+  .get(getVmProperties)
+
+
 app.route('/vms/:id')
   .get(getVm)
   .put(updateTodoItem)
@@ -68,14 +75,30 @@ function listVms(req, res, next) {
     filtobj= JSON.parse(new Buffer(filter, 'base64'));
     if(filtobj["servername"])
       filtsrv="(?i)"+filtobj["servername"]+".*";
+    if(filtobj["cluster"])
+      filtsrv="(?i)"+filtobj["cluster"]+".*";
+    if(filtobj["datacenter"])
+      filtsrv="(?i)"+filtobj["datacenter"]+".*";
+
   }
 
  
 
-  if(reverse) {
-    r.table('vms').orderBy({index: r.desc(sortorder)}).filter(function(filt) {
-      return filt("servername").match(filtsrv);
-    }).run(req.app._rdbConn, function(err, cursor) {
+    query=r.table('vms');
+    if(reverse) {
+      query=query.orderBy({index: r.desc(sortorder)});
+    } else {
+      query=query.orderBy({index: sortorder});
+    }
+
+    Object.keys(filtobj).forEach(function(key) {
+      var val = filtobj[key];
+        query=query.filter(function(q) {
+        return q(key).match("(?i)"+val+".*")})
+    });
+    console.log(query);
+
+    query.run(req.app._rdbConn, function(err, cursor) {
       if(err) {
         return next(err);
       }
@@ -96,35 +119,7 @@ function listVms(req, res, next) {
 
         res.send(resstr);
       });
-    });
-
-  } else {
-    r.table('vms').orderBy({index: sortorder}).filter(function(filt) {
-      return filt("servername").match(filtsrv);
-    }).run(req.app._rdbConn, function(err, cursor) {
-      if(err) {
-        return next(err);
-      }
-
-      //Retrieve all the todos in an array.
-      cursor.toArray(function(err, result) {
-        if(err) {
-          return next(err);
-        }
-        console.log("Building result total: "+result.length);
-        res.setHeader('content-type','application/json');
-        var resstr = '{ "total": '+result.length+',\n'+
-        ' "page": '+page+',\n'+
-        ' "pagesize": '+pagesize+',\n'+
-        ' "data": '+ JSON.stringify(result.slice(page,page+pagesize)) + '\n}'
-
-  //      var vms = JSON.parse(result);
-
-        res.send(resstr);
-      });
-    });
-    
-  }
+    });    
 }
 
 /*
@@ -132,6 +127,9 @@ function listVms(req, res, next) {
  */
 function getVm(req, res, next) {
   var vmID = req.params.id;
+  var vmres;
+  var vmdetres;
+  var vmalertres;
 
   r.table('vms').get(vmID).run(req.app._rdbConn, function(err, result) {
     if(err) {
@@ -140,6 +138,40 @@ function getVm(req, res, next) {
 
     res.json(result);
   });
+}
+
+function getVmAlerts(req, res, next) {
+  var vmID = req.params.id;
+
+  r.table('vm_alerts').orderBy({index: 'lastseen'}).filter({'vmid': vmID}).run(req.app._rdbConn, function(err, cursor) {
+    if(err) {
+      return next(err);
+    }
+        cursor.toArray(function(err, result) {
+      if(err) {
+        return next(err);
+      }
+
+    res.json(result); 
+  });
+});
+}
+
+function getVmProperties(req, res, next) {
+  var vmID = req.params.id;
+
+  r.table('vm_details').orderBy({index: 'lastseen'}).filter({'vmid': vmID}).run(req.app._rdbConn, function(err, cursor) {
+    if(err) {
+      return next(err);
+    }
+        cursor.toArray(function(err, result) {
+      if(err) {
+        return next(err);
+      }
+      console.log(result.length)
+    res.json(result); 
+  });
+});
 }
 
 
