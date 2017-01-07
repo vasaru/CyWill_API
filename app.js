@@ -58,7 +58,7 @@ function listVms(req, res, next) {
 
   console.log("item start = "+page);
   console.log("item stop = "+pagesize);
-  var sortorder = "servername";
+  var sortorder = "DC_Cluster_Server";
   if(sortstr) {
     console.log("Sort " + new Buffer(sortstr, 'base64') );
     var sortobj = JSON.parse(new Buffer(sortstr, 'base64'));
