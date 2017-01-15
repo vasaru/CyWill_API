@@ -1,7 +1,18 @@
+/* 
+  API for Cygate multicustomer costing service
+  Author: Henrik Kjellsson <henrik.kjellsson@cygate.se>
+
+*/
+
+
+
 var async = require('async');
 var express = require('express');
 var bodyParser = require('body-parser');
+var passport = require('passport');
 var r = require('rethinkdb');
+var morgan = require('morgan');
+var bcrypt = require('bcrypt-nodejs');
 
 var config = require(__dirname + '/config.js');
 
@@ -12,6 +23,7 @@ var app = express();
 app.use(express.static(__dirname + '/public'));
 
 app.use(bodyParser.json());
+app.use(morgan('dev'));
 
 app.use(function(req, res, next) {
   res.header("Access-Control-Allow-Origin", "*");
@@ -19,22 +31,41 @@ app.use(function(req, res, next) {
   next();
 });
 
-//The REST routes for "todos".
+//The REST routes for "cywill".
+
+app.route('/setupusers')
+  .get(setupUsers);
+
 app.route('/vms')
-  .get(listVms)
-  .post(createTodoItem);
-
-app.route('/vmalerts/:id')
-  .get(getVmAlerts)
-
-app.route('/vmdetails/:id')
-  .get(getVmProperties)
-
+  .get(listVms);
 
 app.route('/vms/:id')
-  .get(getVm)
-  .put(updateTodoItem)
-  .delete(deleteTodoItem);
+  .get(getVm);
+
+app.route('/costs')
+  .get(listCosts)
+  .post(createCostItem);
+
+app.route('/costs/:id')
+  .get(getCost)
+  .put(updateCostItem)
+  .delete(deleteCostItem);
+
+app.route('/customers')
+  .get(listCustomers)
+  .post(createCustomerItem);
+
+app.route('/customers/:id')
+  .get(getCustomer)
+  .put(updateCustomerItem)
+  .delete(deleteCustomerItem);
+
+app.route('/vms/:id/alerts')
+  .get(getVmAlerts);
+
+app.route('/vms/:id/details')
+  .get(getVmProperties);
+
 
 //If we reach this middleware the route could not be handled and must be unknown.
 app.use(handle404);
@@ -42,6 +73,39 @@ app.use(handle404);
 //Generic error handling middleware.
 app.use(handleError);
 
+
+function setupUsers(req, res, next) {
+  var defaultuser = {
+    username: 'admin',
+    password: '',
+    role: 'admin'
+  }
+
+  var salt = bcrypt.genSaltSync(10);
+  // Hash the password with the salt
+  var hash = bcrypt.hashSync("Spectum42", salt);
+
+  defaultuser.password=hash;
+
+  console.log("setting up defaultuser");
+  console.dir(defaultuser);
+
+  r.table('users').count().run(req.app._rdbConn, function(err, result) {
+    if (err) throw err;
+    console.log(result);
+    if(result == 0) {
+      r.table('users').insert(defaultuser, {returnChanges: true}).run(req.app._rdbConn, function(err, result) {
+        if(err) {
+          return next(err);
+        }
+
+        res.json(result.changes[0].new_val);
+      });
+    } else {
+        res.json({ result: "Already added"});      
+    }      
+  });
+}
 
 /*
  * Retrieve all todo items.
@@ -176,11 +240,48 @@ function getVmProperties(req, res, next) {
 });
 }
 
+/*
+ * Get a specific todo item.
+ */
+function getCost(req, res, next) {
+  var vmID = req.params.id;
+  var vmres;
+  var vmdetres;
+  var vmalertres;
+
+  r.table('vms').get(vmID).run(req.app._rdbConn, function(err, result) {
+    if(err) {
+      return next(err);
+    }
+
+    res.json(result);
+  });
+}
+
+/*
+ * Get a specific todo item.
+ */
+function listCosts(req, res, next) {
+  var vmID = req.params.id;
+  var vmres;
+  var vmdetres;
+  var vmalertres;
+
+  r.table('vms').get(vmID).run(req.app._rdbConn, function(err, result) {
+    if(err) {
+      return next(err);
+    }
+
+    res.json(result);
+  });
+}
+
+
 
 /*
  * Insert a new todo item.
  */
-function createTodoItem(req, res, next) {
+function createCostItem(req, res, next) {
   var todoItem = req.body;
   todoItem.createdAt = r.now();
 
@@ -199,7 +300,7 @@ function createTodoItem(req, res, next) {
 /*
  * Update a todo item.
  */
-function updateTodoItem(req, res, next) {
+function updateCostItem(req, res, next) {
   var todoItem = req.body;
   var todoItemID = req.params.id;
 
@@ -215,7 +316,7 @@ function updateTodoItem(req, res, next) {
 /*
  * Delete a todo item.
  */
-function deleteTodoItem(req, res, next) {
+function deleteCostItem(req, res, next) {
   var todoItemID = req.params.id;
 
   r.table('todos').get(todoItemID).delete().run(req.app._rdbConn, function(err, result) {
@@ -226,6 +327,95 @@ function deleteTodoItem(req, res, next) {
     res.json({success: true});
   });
 }
+
+/*
+ * Get a specific todo item.
+ */
+function getCustomer(req, res, next) {
+  var vmID = req.params.id;
+  var vmres;
+  var vmdetres;
+  var vmalertres;
+
+  r.table('vms').get(vmID).run(req.app._rdbConn, function(err, result) {
+    if(err) {
+      return next(err);
+    }
+
+    res.json(result);
+  });
+}
+
+/*
+ * Get a specific todo item.
+ */
+function listCustomers(req, res, next) {
+  var vmID = req.params.id;
+  var vmres;
+  var vmdetres;
+  var vmalertres;
+
+  r.table('vms').get(vmID).run(req.app._rdbConn, function(err, result) {
+    if(err) {
+      return next(err);
+    }
+
+    res.json(result);
+  });
+}
+
+
+
+/*
+ * Insert a new todo item.
+ */
+function createCustomerItem(req, res, next) {
+  var todoItem = req.body;
+  todoItem.createdAt = r.now();
+
+  console.dir(todoItem);
+
+  r.table('todos').insert(todoItem, {returnChanges: true}).run(req.app._rdbConn, function(err, result) {
+    if(err) {
+      return next(err);
+    }
+
+    res.json(result.changes[0].new_val);
+  });
+}
+
+
+/*
+ * Update a todo item.
+ */
+function updateCustomerItem(req, res, next) {
+  var todoItem = req.body;
+  var todoItemID = req.params.id;
+
+  r.table('todos').get(todoItemID).update(todoItem, {returnChanges: true}).run(req.app._rdbConn, function(err, result) {
+    if(err) {
+      return next(err);
+    }
+
+    res.json(result.changes[0].new_val);
+  });
+}
+
+/*
+ * Delete a todo item.
+ */
+function deleteCustomerItem(req, res, next) {
+  var todoItemID = req.params.id;
+
+  r.table('todos').get(todoItemID).delete().run(req.app._rdbConn, function(err, result) {
+    if(err) {
+      return next(err);
+    }
+
+    res.json({success: true});
+  });
+}
+
 
 /*
  * Page-not-found middleware.
