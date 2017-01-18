@@ -1,6 +1,6 @@
 module.exports = {
   rethinkdb: {
-    host: '192.168.0.1',
+    host: 'localhost',
     port: 28015,
     authKey: '',
     db: 'CyWill'

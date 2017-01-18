@@ -66,6 +66,9 @@ app.route('/vms/:id/alerts')
 app.route('/vms/:id/details')
   .get(getVmProperties);
 
+app.route('/costkeys')
+  .get(getCostKeys);
+
 
 //If we reach this middleware the route could not be handled and must be unknown.
 app.use(handle404);
@@ -73,6 +76,53 @@ app.use(handle404);
 //Generic error handling middleware.
 app.use(handleError);
 
+
+function getCostKeys(req, res, next) {
+  var detailkeys = [];
+  var vmkeys = [];
+  var reskey = [];
+  r.table('vm_details').limit(1).run(req.app._rdbConn, function(err, cursor) {
+    if (err) throw err;
+    cursor.toArray(function(err, result) {
+      if(err) {
+        return next(err);
+      }
+      detailkeys=(Object.keys(result[0]));
+      //console.dir(detailkeys);
+      r.table('vms').limit(1).run(req.app._rdbConn, function(err, cursor) {
+        if (err) throw err;
+        cursor.toArray(function(err, result) {
+          if(err) {
+            return next(err);
+          }
+        vmkeys=(Object.keys(result[0]));
+        for (elem in vmkeys) {
+          reskey.push(vmkeys[elem]);
+        }
+        for (elem in detailkeys) {
+          reskey.push(detailkeys[elem]);
+        }
+
+
+
+//        vmkeys=JSON.stringify(vmkeys)+JSON.stringify(detailkeys);
+//        reskeystr = '\'' + reskeys.join('\'','\'') + '\'';
+        console.dir(reskey);
+
+        console.log("Building result total: "+result.length);
+        res.setHeader('content-type','application/json');
+        var resstr = '{ "total": '+result.length+',\n'+
+        ' "data": ['+ JSON.stringify(vmkeys) + ']\n}'
+
+//      var vms = JSON.parse(result);
+
+        res.send(JSON.stringify(reskey));
+      });
+    });
+  });
+  });
+  
+}
 
 function setupUsers(req, res, next) {
   var defaultuser = {
