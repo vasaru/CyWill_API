@@ -13,6 +13,7 @@ var passport = require('passport');
 var r = require('rethinkdb');
 var morgan = require('morgan');
 var bcrypt = require('bcrypt-nodejs');
+var cors=require('cors');
 
 var config = require(__dirname + '/config.js');
 
@@ -24,6 +25,7 @@ app.use(express.static(__dirname + '/public'));
 
 app.use(bodyParser.json());
 app.use(morgan('dev'));
+app.use(cors());
 
 app.use(function(req, res, next) {
   res.header("Access-Control-Allow-Origin", "*");
@@ -68,6 +70,8 @@ app.route('/vms/:id/details')
 
 app.route('/costkeys')
   .get(getCostKeys);
+
+
 
 
 //If we reach this middleware the route could not be handled and must be unknown.
@@ -158,7 +162,7 @@ function setupUsers(req, res, next) {
 }
 
 /*
- * Retrieve all todo items.
+ * Retrieve all vms items.
  */
 function listVms(req, res, next) {
   var page = parseInt(req.query.page);
@@ -332,12 +336,12 @@ function listCosts(req, res, next) {
  * Insert a new todo item.
  */
 function createCostItem(req, res, next) {
-  var todoItem = req.body;
-  todoItem.createdAt = r.now();
+  var costItem = req.body;
+//  costItem.createdAt = r.now();
+  console.log("In createCostItem");
+  console.dir(req.body);
 
-  console.dir(todoItem);
-
-  r.table('todos').insert(todoItem, {returnChanges: true}).run(req.app._rdbConn, function(err, result) {
+  r.table('costs').insert(costItem, {returnChanges: true}).run(req.app._rdbConn, function(err, result) {
     if(err) {
       return next(err);
     }
@@ -464,6 +468,86 @@ function deleteCustomerItem(req, res, next) {
 
     res.json({success: true});
   });
+}
+/*
+ * Retrieve all vms items.
+ */
+function listCosts(req, res, next) {
+  var page = parseInt(req.query.page);
+  var pagesize = parseInt(req.query.pagesize);
+  var sortstr = req.query.sort;
+  var filter = req.query.filters;
+  var total=0;
+  var reverse=false;
+
+  console.log("Getting some costs");
+
+  console.log("item start = "+page);
+  console.log("item stop = "+pagesize);
+  var sortorder = "";
+  if(sortstr) {
+    console.log("Sort " + new Buffer(sortstr, 'base64') );
+    var sortobj = JSON.parse(new Buffer(sortstr, 'base64'));
+    sortorder=sortobj.by;
+    if(sortobj.reverse) {
+      reverse=true;
+    } 
+
+  }
+  var filtsrv="(?i)$.*";
+  var filtcreat="(?i)$.*";
+  var filtobj;
+  if(filter) {
+    console.log("Filter " + new Buffer(filter, 'base64') );
+    filtobj= JSON.parse(new Buffer(filter, 'base64'));
+/*    if(filtobj["servername"])
+      filtsrv="(?i)"+filtobj["servername"]+".*";
+    if(filtobj["cluster"])
+      filtsrv="(?i)"+filtobj["cluster"]+".*";
+    if(filtobj["datacenter"])
+      filtsrv="(?i)"+filtobj["datacenter"]+".*";
+*/
+  }
+
+ 
+
+    query=r.table('costs');
+    if(reverse) {
+      query=query.orderBy({index: r.desc(sortorder)});
+/*    } else {
+      query=query.orderBy({index: sortorder});*/
+    }
+    if(filtobj) {
+      Object.keys(filtobj).forEach(function(key) {
+        var val = filtobj[key];
+          query=query.filter(function(q) {
+          return q(key).match("(?i)"+val+".*")})
+      });
+    }
+    console.log(query);
+
+    query.run(req.app._rdbConn, function(err, cursor) {
+      if(err) {
+        return next(err);
+      }
+
+      //Retrieve all the todos in an array.
+      cursor.toArray(function(err, result) {
+        if(err) {
+          return next(err);
+        }
+        console.log("Building result total: "+result.length);
+        res.setHeader('content-type','application/json');
+        var resstr = '{ "total": '+result.length+',\n'+
+        ' "page": '+page+',\n'+
+        ' "pagesize": '+pagesize+',\n'+
+        ' "data": '+ JSON.stringify(result.slice(page,page+pagesize)) + '\n}'
+
+  //      var vms = JSON.parse(result);
+
+        res.send(resstr);
+      });
+    });    
 }
 
 
