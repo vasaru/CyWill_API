@@ -83,25 +83,54 @@ app.use(handle404);
 //Generic error handling middleware.
 app.use(handleError);
 
-function processVmCost(conn, vm,costs) {
+function processVmCost(conn, vm, vmd, costs) {
   var v;
   var tc=0.0;
   var cost={};
   console.log("in ProcessVmCost");
-  console.log(vm.vmid);
+  console.log(vmd.vmid);
   for(var k=0; k< costs.length; k++) {
-    console.dir(costs[k]);
-    if(costs[k].itemtype == "Per Item") {
-      tc+=vm[costs[k].costname]*costs[k].cost;
-      cost[costs[k].costname] = vm[costs[k].costname]*costs[k].cost;
-    }
-    console.log("Adding "+tc);
+//    console.dir(costs[k]);
+    if(costs[k].costname.indexOf(".")!=-1) {
+//      console.log("Found split cost");
+      var first = costs[k].costname.split(".")[0]
+      var second = costs[k].costname.split(".")[1]
+//      console.log("Getting cost of "+second+" of "+first + " = "+ vmd[first][second] + " for "+costs[k].cost);
+      if(costs[k].itemtype == "Per GB") {
+        if(vmd[first][second]>0) {
+          tc+=vmd[first][second]*costs[k].cost;
+          cost[costs[k].costname] = vmd[first][second]*costs[k].cost;      
+        }
+      }
+    } else {
+      if(costs[k].itemtype == "Amount") {
+        tc+=vmd[costs[k].costname]*costs[k].cost;
+        cost[costs[k].costname] = vmd[costs[k].costname]*costs[k].cost;
+      }
+//      console.log("Adding "+tc);
+      if(costs[k].itemtype == "Per GB") {
+        tc+=vmd[costs[k].costname]*costs[k].cost;
+        cost[costs[k].costname] = vmd[costs[k].costname]*costs[k].cost;      
+      }
+//      console.log("Adding "+tc);
+      if(costs[k].itemtype == "Per Occurrence") {
+        tc+=costs[k].cost;
+        cost[costs[k].costname] = costs[k].cost;      
+      }
+//      console.log("Adding "+tc);
 
+    }
+    if(costs[k].currency) {
+      cost['currency'] = costs[k].currency;
+    }
+    
 
 //    console.log("Getting cost for " + k.costitem);
 //    console.log(vm[k.costitem]);
   }
-  r.table("vms").get(vm.vmid).replace(function(cr) {
+  console.log("Total cost "+tc+" " +cost['currency']);
+
+  r.table("vms").get(vmd.vmid).replace(function(cr) {
       return cr.without('cost_detail')
   }).run(conn, function (err, result) {
     if (err) {
@@ -110,7 +139,7 @@ function processVmCost(conn, vm,costs) {
     }
     console.log(result);
   });
-  r.table("vms").get(vm.vmid).update({totalCost: tc, cost_detail: cost}).run(conn, function (err, result) {
+  r.table("vms").get(vmd.vmid).update({totalCost: tc, cost_detail: cost}).run(conn, function (err, result) {
     if (err) {
       console.log(err);
       return err;
@@ -158,7 +187,7 @@ function recalculateCosts(req, res, next) {
           if(err) {
             return next(err);
           }
-          processVmCost(req.app._rdbConn,res[0],costs);
+          processVmCost(req.app._rdbConn,row[0],res[0],costs);
         })
       })
 
@@ -180,6 +209,8 @@ function getCostKeys(req, res, next) {
         return next(err);
       }
       detailkeys = (Object.keys(result[0]));
+      storagekeys=(Object.keys(result[0].storage));
+
       //console.dir(detailkeys);
       r.table('vms').limit(1).run(req.app._rdbConn, function (err, cursor) {
         if (err) throw err;
@@ -194,7 +225,12 @@ function getCostKeys(req, res, next) {
           for (elem in detailkeys) {
             reskey.push(detailkeys[elem]);
           }
+          for (elem in storagekeys) {
+            reskey.push("storage."+storagekeys[elem]);
+          }
 
+          reskey = Array.from(new Set(reskey))
+          reskey.sort();
 
 
           //        vmkeys=JSON.stringify(vmkeys)+JSON.stringify(detailkeys);
